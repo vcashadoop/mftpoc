@@ -1,0 +1,747 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FLOW VERSION="3.0" CLEANUP="true">
+  <COMMENT>Assemble all 94-Byte NACHA FlatFile Records in Pure Flow following Senior webMethods 12.1 Standards</COMMENT>
+
+  <!-- Level 1: Outer Try/Catch Sequence Wrapper -->
+  <SEQUENCE TIMEOUT="" EXIT-ON="SUCCESS">
+    <COMMENT>=== Outer Try/Catch Sequence Wrapper ===</COMMENT>
+
+    <!-- Level 2: Main Processing Sequence (Try Block) -->
+    <SEQUENCE TIMEOUT="" EXIT-ON="FAILURE">
+      <COMMENT>=== Main Processing Sequence (Try Block) ===</COMMENT>
+
+      <!-- =================================================================== -->
+      <!-- STEP 1: RESOLVE ROOT DOCUMENT & EXTRACT PAYMENT BATCH LIST          -->
+      <!-- =================================================================== -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Resolve root Document / CstmrCdtTrfInitn</COMMENT>
+        <MAPCOPY NAME="Link" FROM="/document;2;0/Document;2;0/CstmrCdtTrfInitn;2;0" TO="/cstmr;2;0"></MAPCOPY>
+      </MAP>
+      <BRANCH TIMEOUT="" SWITCH="/cstmr">
+        <SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <COMMENT>Fallback to unwrapped CstmrCdtTrfInitn</COMMENT>
+            <MAPCOPY NAME="Link" FROM="/document;2;0/CstmrCdtTrfInitn;2;0" TO="/cstmr;2;0"></MAPCOPY>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Extract clean PmtInf batch array</COMMENT>
+        <MAPCOPY NAME="Link" FROM="/cstmr;2;0/PmtInf;2;1" TO="/pmtInfList;2;1"></MAPCOPY>
+      </MAP>
+
+      <!-- =================================================================== -->
+      <!-- STEP 2: BUILD RECORD 1 (FILE HEADER - 94 BYTES)                     -->
+      <!-- =================================================================== -->
+      <!-- 2a: Extract first batch details dynamically -->
+      <LOOP TIMEOUT="" IN-ARRAY="/pmtInfList">
+        <MAP TIMEOUT="" MODE="STANDALONE">
+          <COMMENT>Extract header routing and bank details dynamically from batch</COMMENT>
+          <MAPCOPY NAME="Link" FROM="/pmtInfList;2;0/DbtrAgt;2;0/FinInstnId;2;0/ClrSysMmbId;2;0/MmbId;1;0" TO="/destRoutingRaw;1;0"></MAPCOPY>
+          <MAPCOPY NAME="Link" FROM="/pmtInfList;2;0/DbtrAgt;2;0/FinInstnId;2;0/Nm;1;0" TO="/destNameRaw;1;0"></MAPCOPY>
+          <MAPCOPY NAME="Link" FROM="/pmtInfList;2;0/Dbtr;2;0/Id;2;0/OrgId;2;0/Othr;2;0/Issr;1;0" TO="/originNameRaw;1;0"></MAPCOPY>
+          <MAPCOPY NAME="Link" FROM="/pmtInfList;2;0/Dbtr;2;0/Id;2;0/OrgId;2;0/Othr;2;0/Id;1;0" TO="/originIdRaw;1;0"></MAPCOPY>
+          <MAPCOPY NAME="Link" FROM="/pmtInfList;2;0/Dbtr;2;0/Nm;1;0" TO="/companyNameRaw;1;0"></MAPCOPY>
+          <MAPCOPY NAME="Link" FROM="/pmtInfList;2;0/PmtTpInf;2;0/LclInstrm;2;0/Cd;1;0" TO="/secCodeRaw;1;0"></MAPCOPY>
+          <MAPCOPY NAME="Link" FROM="/pmtInfList;2;0/ReqdExctnDt;1;0" TO="/reqdExctnDtRaw;1;0"></MAPCOPY>
+        </MAP>
+        <EXIT FROM="$loop" SIGNAL="SUCCESS" FAILURE-MESSAGE=""></EXIT>
+      </LOOP>
+
+      <!-- Dynamic Fallbacks from GrpHdr if omitted in batch -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/cstmr;2;0/GrpHdr;2;0/CreDtTm;1;0" TO="/creDtTmRaw;1;0"></MAPCOPY>
+      </MAP>
+      <BRANCH TIMEOUT="" SWITCH="/destNameRaw">
+        <SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/destNameRaw;1;0">
+              <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">KEYBANK NATIONAL ASSOCI</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+            </MAPSET>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+      <BRANCH TIMEOUT="" SWITCH="/originNameRaw">
+        <SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/cstmr;2;0/GrpHdr;2;0/InitgPty;2;0/Nm;1;0" TO="/originNameRaw;1;0"></MAPCOPY>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+      <BRANCH TIMEOUT="" SWITCH="/companyNameRaw">
+        <SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/cstmr;2;0/GrpHdr;2;0/InitgPty;2;0/Nm;1;0" TO="/companyNameRaw;1;0"></MAPCOPY>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+      <BRANCH TIMEOUT="" SWITCH="/originIdRaw">
+        <SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/cstmr;2;0/GrpHdr;2;0/InitgPty;2;0/Id;2;0/OrgId;2;0/Othr;2;0/Id;1;0" TO="/originIdRaw;1;0"></MAPCOPY>
+            <MAPCOPY NAME="Link" FROM="/cstmr;2;0/GrpHdr;2;0/InitgPty;2;0/Id;2;0/PrvtId;2;0/Othr;2;0/Id;1;0" TO="/originIdRaw;1;0"></MAPCOPY>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/originIdRaw;1;0" TO="/companyIdRaw;1;0"></MAPCOPY>
+      </MAP>
+      <BRANCH TIMEOUT="" SWITCH="/secCodeRaw">
+        <SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/secCodeRaw;1;0">
+              <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">CCD</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+            </MAPSET>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+      <BRANCH TIMEOUT="" SWITCH="/creDtTmRaw">
+        <SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/reqdExctnDtRaw;1;0" TO="/creDtTmRaw;1;0"></MAPCOPY>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+      <BRANCH TIMEOUT="" SWITCH="/reqdExctnDtRaw">
+        <SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/creDtTmRaw;1;0" TO="/reqdExctnDtRaw;1;0"></MAPCOPY>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+
+      <!-- Format File Date (YYMMDD) and File Time (HHMM) from XML CreDtTm -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/creDtTmRaw;1;0" TO="/isoDate;1;0"></MAPCOPY>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatDateYYMMDD" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Format File Creation Date</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/yymmdd;1;0" TO="/fileDate;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/creDtTmRaw;1;0" TO="/isoDate;1;0"></MAPCOPY>
+        <MAPDELETE NAME="Dropper" FIELD="/yymmdd;1;0"></MAPDELETE>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatTimeHHMM" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Format File Creation Time</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/hhmm;1;0" TO="/fileTime;1;0"></MAPCOPY>
+        <MAPDELETE NAME="Dropper" FIELD="/isoDate;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/hhmm;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/creDtTmRaw;1;0"></MAPDELETE>
+      </MAP>
+
+      <!-- 2b: Format Immediate Destination (10 chars, space + 9-digit routing) -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/destRoutingRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/targetLength;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">10</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/direction;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">LEFT</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/padChar;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml"> </value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatFixedWidthField" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Pad Destination Routing (10 chars)</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/outString;1;0" TO="/destRouting;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/destRoutingRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/beginIndex;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/endIndex;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">8</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPDELETE NAME="Dropper" FIELD="/targetLength;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/direction;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/padChar;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/outString;1;0"></MAPDELETE>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.string:substring" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Extract ODFI (first 8 digits)</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/odfi;1;0"></MAPCOPY>
+        <MAPDELETE NAME="Dropper" FIELD="/inString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/beginIndex;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/endIndex;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/destRoutingRaw;1;0"></MAPDELETE>
+      </MAP>
+
+      <!-- 2c: Format Immediate Origin ID (10 chars) -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/originIdRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.string:length" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Get originId length</COMMENT>
+      </INVOKE>
+      <BRANCH TIMEOUT="" SWITCH="/value">
+        <SEQUENCE NAME="10" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/originIdRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+            <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/beginIndex;1;0">
+              <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">1</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+            </MAPSET>
+            <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/endIndex;1;0">
+              <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">10</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+            </MAPSET>
+          </MAP>
+          <INVOKE TIMEOUT="" SERVICE="pub.string:substring" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+            <COMMENT>Strip leading digit if 10 chars</COMMENT>
+          </INVOKE>
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/originIdRaw;1;0"></MAPCOPY>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/originIdRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/targetLength;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">10</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/direction;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">LEFT</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/padChar;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml"> </value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPDELETE NAME="Dropper" FIELD="/beginIndex;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/endIndex;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatFixedWidthField" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Pad Origin ID with space</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/outString;1;0" TO="/originId;1;0"></MAPCOPY>
+        <MAPDELETE NAME="Dropper" FIELD="/originIdRaw;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/inString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/targetLength;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/direction;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/padChar;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/outString;1;0"></MAPDELETE>
+      </MAP>
+
+      <!-- 2d: Format Destination & Origin Names (23 chars each) -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/destNameRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/targetLength;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">23</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/direction;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">RIGHT</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatFixedWidthField" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Format Destination Name</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/outString;1;0" TO="/destName;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/originNameRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/targetLength;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">23</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/direction;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">RIGHT</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatFixedWidthField" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Format Origin Name</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/outString;1;0" TO="/originName;1;0"></MAPCOPY>
+        <MAPDELETE NAME="Dropper" FIELD="/destNameRaw;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/originNameRaw;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/inString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/targetLength;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/direction;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/outString;1;0"></MAPDELETE>
+      </MAP>
+
+      <!-- 2e: File Modifier and Build Record 1 -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/fileModifier;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">2</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <BRANCH TIMEOUT="" SWITCH="/fileIdModifier">
+        <SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+        </SEQUENCE>
+        <SEQUENCE NAME="$default" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/fileIdModifier" TO="/fileModifier;1;0"></MAPCOPY>
+          </MAP>
+        </SEQUENCE>
+      </BRANCH>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.services:buildRecord1" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Build Record 1</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Map Record 1 Document into ffValues</COMMENT>
+        <MAPCOPY NAME="Link" FROM="/rec1Doc;2;0" TO="/ffValues;2;0/1;2;0"></MAPCOPY>
+      </MAP>
+
+      <!-- =================================================================== -->
+      <!-- STEP 3: BUILD RECORD 5 (BATCH HEADER - 94 BYTES)                    -->
+      <!-- =================================================================== -->
+      <!-- Format Company Name (16 chars) & Company ID (10 chars) -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/companyNameRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/targetLength;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">16</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/direction;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">RIGHT</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatFixedWidthField" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Format Company Name</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/outString;1;0" TO="/companyName;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/companyIdRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/targetLength;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">10</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/direction;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">RIGHT</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatFixedWidthField" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Format Company ID</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/outString;1;0" TO="/companyId;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/secCodeRaw;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/targetLength;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">3</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/direction;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">RIGHT</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatFixedWidthField" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Format SEC Code</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/outString;1;0" TO="/secCode;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/reqdExctnDtRaw;1;0" TO="/isoDate;1;0"></MAPCOPY>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.utils:formatDateYYMMDD" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Format Effective Date</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/yymmdd;1;0" TO="/effectiveDate;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/entryDesc;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">EDI/ACH   </value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/batchNum;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0000001</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPDELETE NAME="Dropper" FIELD="/companyNameRaw;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/companyIdRaw;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/secCodeRaw;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/reqdExctnDtRaw;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/inString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/targetLength;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/direction;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/outString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/isoDate;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/yymmdd;1;0"></MAPDELETE>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.services:buildRecord5" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Build Record 5</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Map Record 5 Document into ffValues</COMMENT>
+        <MAPCOPY NAME="Link" FROM="/rec5Doc;2;0" TO="/ffValues;2;0/5;2;0"></MAPCOPY>
+      </MAP>
+
+      <!-- =================================================================== -->
+      <!-- STEP 4: INITIALIZE TRANSACTION LOOP & ACCUMULATORS                  -->
+      <!-- =================================================================== -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Initialize Loop Accumulators</COMMENT>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/recordsBuffer;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml"></value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/runningEntryCount;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/runningHash;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/runningCreditCents;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/txSeq;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">10</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+
+      <!-- =================================================================== -->
+      <!-- STEP 5: CLEAN NESTED LOOP OVER BATCHES AND TRANSACTIONS             -->
+      <!-- =================================================================== -->
+      <LOOP TIMEOUT="" IN-ARRAY="/pmtInfList">
+        <LOOP TIMEOUT="" IN-ARRAY="/pmtInfList/CdtTrfTxInf">
+          <SEQUENCE TIMEOUT="" EXIT-ON="FAILURE">
+
+            <!-- 5a: Increment sequence counter -->
+            <MAP TIMEOUT="" MODE="STANDALONE">
+              <MAPCOPY NAME="Link" FROM="/txSeq;1;0" TO="/num1;1;0"></MAPCOPY>
+              <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/num2;1;0">
+                <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">1</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+              </MAPSET>
+            </MAP>
+            <INVOKE TIMEOUT="" SERVICE="pub.math:addInts" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+              <COMMENT>Increment Sequence</COMMENT>
+            </INVOKE>
+            <MAP TIMEOUT="" MODE="STANDALONE">
+              <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/txSeq;1;0"></MAPCOPY>
+              <MAPCOPY NAME="Link" FROM="/pmtInfList;2;0/CdtTrfTxInf;2;0" TO="/tx;2;0"></MAPCOPY>
+              <MAPCOPY NAME="Link" FROM="/odfi;1;0" TO="/odfi;1;0"></MAPCOPY>
+              <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/seqNumber;1;0"></MAPCOPY>
+              <MAPDELETE NAME="Dropper" FIELD="/num1;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/num2;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+            </MAP>
+
+            <!-- 5b: Invoke dedicated modular transaction builder -->
+            <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.services:buildTransactionRecord" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+              <COMMENT>Modular: Format Rec 6 and optional Rec 7</COMMENT>
+            </INVOKE>
+            <MAP TIMEOUT="" MODE="STANDALONE">
+              <COMMENT>Append rec6Doc to rec6List</COMMENT>
+              <MAPCOPY NAME="Link" FROM="/rec6List;2;1" TO="/toList;2;1"></MAPCOPY>
+              <MAPCOPY NAME="Link" FROM="/rec6Doc;2;0" TO="/fromItem;2;0"></MAPCOPY>
+            </MAP>
+            <INVOKE TIMEOUT="" SERVICE="pub.list:appendToDocumentList" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+              <COMMENT>Append Document</COMMENT>
+            </INVOKE>
+            <MAP TIMEOUT="" MODE="STANDALONE">
+              <MAPCOPY NAME="Link" FROM="/toList;2;1" TO="/rec6List;2;1"></MAPCOPY>
+              <MAPDELETE NAME="Dropper" FIELD="/toList;2;1"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/fromItem;2;0"></MAPDELETE>
+            </MAP>
+
+            <!-- 5c: Interleave records into buffer -->
+            <BRANCH TIMEOUT="" SWITCH="/hasAddenda">
+              <SEQUENCE NAME="1" TIMEOUT="" EXIT-ON="FAILURE">
+                <MAP TIMEOUT="" MODE="STANDALONE">
+                  <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="true" GLOBALVARIABLES="false" FIELD="/recordsBuffer;1;0">
+                    <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">%recordsBuffer;1;0%%rec6;1;0%&#xD;&#xA;%rec7;1;0%&#xD;&#xA;</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+                  </MAPSET>
+                </MAP>
+              </SEQUENCE>
+              <SEQUENCE NAME="$default" TIMEOUT="" EXIT-ON="FAILURE">
+                <MAP TIMEOUT="" MODE="STANDALONE">
+                  <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="true" GLOBALVARIABLES="false" FIELD="/recordsBuffer;1;0">
+                    <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">%recordsBuffer;1;0%%rec6;1;0%&#xD;&#xA;</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+                  </MAPSET>
+                </MAP>
+              </SEQUENCE>
+            </BRANCH>
+
+            <!-- 5d: Accumulate Entry Count, Hash, and Total Credits -->
+            <MAP TIMEOUT="" MODE="STANDALONE">
+              <MAPCOPY NAME="Link" FROM="/runningEntryCount;1;0" TO="/num1;1;0"></MAPCOPY>
+              <MAPCOPY NAME="Link" FROM="/entryCount;1;0" TO="/num2;1;0"></MAPCOPY>
+            </MAP>
+            <INVOKE TIMEOUT="" SERVICE="pub.math:addInts" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+              <COMMENT>Accumulate Entry Count</COMMENT>
+            </INVOKE>
+            <MAP TIMEOUT="" MODE="STANDALONE">
+              <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/runningEntryCount;1;0"></MAPCOPY>
+              <MAPCOPY NAME="Link" FROM="/runningHash;1;0" TO="/num1;1;0"></MAPCOPY>
+              <MAPCOPY NAME="Link" FROM="/recDfi;1;0" TO="/num2;1;0"></MAPCOPY>
+              <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/precision;1;0">
+                <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+              </MAPSET>
+            </MAP>
+            <INVOKE TIMEOUT="" SERVICE="pub.math:addFloats" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+              <COMMENT>Accumulate Hash</COMMENT>
+            </INVOKE>
+            <MAP TIMEOUT="" MODE="STANDALONE">
+              <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/runningHash;1;0"></MAPCOPY>
+              <MAPCOPY NAME="Link" FROM="/runningCreditCents;1;0" TO="/num1;1;0"></MAPCOPY>
+              <MAPCOPY NAME="Link" FROM="/cents;1;0" TO="/num2;1;0"></MAPCOPY>
+              <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/precision;1;0">
+                <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+              </MAPSET>
+            </MAP>
+            <INVOKE TIMEOUT="" SERVICE="pub.math:addFloats" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+              <COMMENT>Accumulate Credit Cents</COMMENT>
+            </INVOKE>
+            <MAP TIMEOUT="" MODE="STANDALONE">
+              <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/runningCreditCents;1;0"></MAPCOPY>
+              <!-- Clean loop dropper -->
+              <MAPDELETE NAME="Dropper" FIELD="/num1;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/num2;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/precision;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/rec6;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/rec7;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/hasAddenda;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/entryCount;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/recDfi;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/cents;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/traceNumber;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/tx;2;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/seqNumber;1;0"></MAPDELETE>
+              <MAPDELETE NAME="Dropper" FIELD="/rec6Doc;2;0"></MAPDELETE>
+            </MAP>
+
+          </SEQUENCE>
+        </LOOP>
+      </LOOP>
+
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Map accumulated rec6List to ffValues/6</COMMENT>
+        <MAPCOPY NAME="Link" FROM="/rec6List;2;1" TO="/ffValues;2;0/6;2;1"></MAPCOPY>
+      </MAP>
+
+      <!-- =================================================================== -->
+      <!-- STEP 6: FORMAT CONTROL TOTALS & CALCULATE BLOCK COUNT               -->
+      <!-- =================================================================== -->
+      <!-- 6a: Format Entry Count (6 digits for Rec 8, 8 digits for Rec 9) -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/runningEntryCount;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/padString;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/length;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">6</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.string:padLeft" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Entry count 6 digits</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/entryCount;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/runningEntryCount;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/padString;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/length;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">8</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.string:padLeft" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Entry count 8 digits</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/entryCount8;1;0"></MAPCOPY>
+        <MAPDELETE NAME="Dropper" FIELD="/inString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/padString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/length;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+      </MAP>
+
+      <!-- 6b: Format Entry Hash (10 digits) -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/runningHash;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/padString;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/length;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">10</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.string:padLeft" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Hash 10 digits</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/entryHash;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/fileHash;1;0"></MAPCOPY>
+        <MAPDELETE NAME="Dropper" FIELD="/inString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/padString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/length;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+      </MAP>
+
+      <!-- 6c: Format Total Credit Cents (12 digits) & Dollar Amount -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/runningCreditCents;1;0" TO="/inString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/padString;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">0</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/length;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">12</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.string:padLeft" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Total Credit 12 digits</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/totalCreditCents;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/runningCreditCents;1;0" TO="/num1;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/num2;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">100</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/precision;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">2</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.math:divideFloats" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Calculate dollar string</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/totalCreditAmount;1;0"></MAPCOPY>
+        <MAPDELETE NAME="Dropper" FIELD="/inString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/padString;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/length;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/num1;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/num2;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/precision;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+      </MAP>
+
+      <!-- 6d: Total Records in File = runningEntryCount + 4 (Rec 1, 5, 8, 9) -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/runningEntryCount;1;0" TO="/num1;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/num2;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">4</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.math:addInts" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Total File Records</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/recordCount;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/blockCount;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">000002</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <MAPDELETE NAME="Dropper" FIELD="/num1;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/num2;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+      </MAP>
+
+      <!-- =================================================================== -->
+      <!-- STEP 7: BUILD RECORD 8 (BATCH CONTROL) & RECORD 9 (FILE CONTROL)    -->
+      <!-- =================================================================== -->
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.services:buildRecord8" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Build Record 8</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Map Record 8 Document into ffValues</COMMENT>
+        <MAPCOPY NAME="Link" FROM="/rec8Doc;2;0" TO="/ffValues;2;0/8;2;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/batchCount;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">000001</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.services:buildRecord9" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Build Record 9</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Map Record 9 Document into ffValues</COMMENT>
+        <MAPCOPY NAME="Link" FROM="/rec9Doc;2;0" TO="/ffValues;2;0/9;2;0"></MAPCOPY>
+      </MAP>
+
+      <!-- =================================================================== -->
+      <!-- STEP 8: GENERATE FLAT FILE STRING VIA WEBMETHODS FLAT FILE SCHEMA   -->
+      <!-- =================================================================== -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Set Flat File Schema name and map ffValues to values</COMMENT>
+        <MAPCOPY NAME="Link" FROM="/ffValues;2;0" TO="/values;2;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/rec6List;2;1" TO="/values;2;0/6;2;1"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/ffSchema;1;0">
+          <DATA ENCODING="XMLValues" I18N="true">
+            <Values version="2.0">
+              <value name="xml">MFT_Pain001_To_NACHA_POC.docs:ffs_NACHA_94Byte</value>
+              <record name="type" javaclass="com.wm.util.Values"></record>
+            </Values>
+          </DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.flatFile:convertToString" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Generate Flat File from Schema and Dictionary</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Set ffString and SUCCESS</COMMENT>
+        <MAPCOPY NAME="Link" FROM="/string;1;0" TO="/ffString;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/status;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">SUCCESS</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+        <!-- Fallback if string is null -->
+        <MAPSET NAME="Setter" OVERWRITE="false" VARIABLES="true" GLOBALVARIABLES="false" FIELD="/ffString;1;0">
+          <DATA ENCODING="XMLValues" I18N="true">
+            <Values version="2.0">
+              <value name="xml">%rec1;1;0%
+%rec5;1;0%
+%recordsBuffer;1;0%%rec8;1;0%
+%rec9;1;0%
+</value>
+              <record name="type" javaclass="com.wm.util.Values"></record>
+            </Values>
+          </DATA>
+        </MAPSET>
+        <MAPDELETE NAME="Dropper" FIELD="/string;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/values;2;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/ffSchema;1;0"></MAPDELETE>
+        <!-- STRICT PIPELINE HYGIENE: Drop all working variables -->
+        <MAPDELETE NAME="Dropper" FIELD="/document;2;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/cstmr;2;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/pmtInfList;2;1"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/txList;2;1"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/destRouting;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/originId;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/destName;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/originName;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/fileModifier;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/fileDate;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/fileTime;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/fileIdModifier;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/odfi;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/companyName;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/companyId;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/secCode;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/effectiveDate;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/entryDesc;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/batchNum;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/recordsBuffer;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/runningEntryCount;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/runningHash;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/runningCreditCents;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/txSeq;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/entryCount;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/entryCount8;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/fileHash;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/totalCreditCents;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/batchCount;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/blockCount;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/rec1;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/rec5;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/rec8;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/rec9;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/rec1Doc;2;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/rec5Doc;2;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/rec8Doc;2;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/rec9Doc;2;0"></MAPDELETE>
+      </MAP>
+
+    </SEQUENCE>
+
+    <!-- Level 2: Catch Sequence -->
+    <SEQUENCE TIMEOUT="" EXIT-ON="DONE">
+      <COMMENT>=== Catch Block ===</COMMENT>
+      <INVOKE TIMEOUT="" SERVICE="pub.flow:getLastError" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Capture last error</COMMENT>
+      </INVOKE>
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/status;1;0">
+          <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">ERROR</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+        </MAPSET>
+      </MAP>
+      <INVOKE TIMEOUT="" SERVICE="pub.flow:throwExceptionForRetry" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Rethrow exception</COMMENT>
+      </INVOKE>
+    </SEQUENCE>
+
+  </SEQUENCE>
+</FLOW>

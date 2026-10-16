@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FLOW VERSION="3.0" CLEANUP="true">
+  <COMMENT>Build Record 9: File Control (94 bytes)</COMMENT>
+  <!-- Level 1: Outer Try/Catch Sequence Wrapper -->
+  <SEQUENCE TIMEOUT="" EXIT-ON="SUCCESS">
+    <COMMENT>=== Outer Try/Catch Wrapper ===</COMMENT>
+
+    <!-- Level 2: Main Processing Sequence (Try Block) -->
+    <SEQUENCE TIMEOUT="" EXIT-ON="FAILURE">
+    <COMMENT>=== Try Block ===</COMMENT>
+
+    <MAP TIMEOUT="" MODE="STANDALONE">
+      <COMMENT>Populate Record 9 Document matching Flat File Schema</COMMENT>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/rec9Doc;2;0/recordTypeCode;1;0"><DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">9</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA></MAPSET>
+        <MAPCOPY NAME="Link" FROM="/batchCount;1;0" TO="/rec9Doc;2;0/batchCount;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/blockCount;1;0" TO="/rec9Doc;2;0/blockCount;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/entryCount8;1;0" TO="/rec9Doc;2;0/entryAddendaCount;1;0"></MAPCOPY>
+        <MAPCOPY NAME="Link" FROM="/fileHash;1;0" TO="/rec9Doc;2;0/entryHash;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/rec9Doc;2;0/totalDebitEntryDollarAmountInFile;1;0"><DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">000000000000</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA></MAPSET>
+        <MAPCOPY NAME="Link" FROM="/totalCreditCents;1;0" TO="/rec9Doc;2;0/totalCreditEntryDollarAmountInFile;1;0"></MAPCOPY>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/rec9Doc;2;0/reserved;1;0"><DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">                                       </value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA></MAPSET>
+      </MAP>
+
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <COMMENT>Assemble Record 9 strictly 94 bytes</COMMENT>
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="true" GLOBALVARIABLES="false" FIELD="/rec9;1;0">
+          <DATA ENCODING="XMLValues" I18N="true">
+            <Values version="2.0">
+              <value name="xml">9%batchCount%%blockCount%%entryCount8%%fileHash%000000000000%totalCreditCents%                                       </value>
+              <record name="type" javaclass="com.wm.util.Values"></record>
+            </Values>
+          </DATA>
+        </MAPSET>
+      </MAP>
+
+    </SEQUENCE>
+
+    <!-- Level 2: Catch Sequence -->
+    <SEQUENCE TIMEOUT="" EXIT-ON="DONE">
+      <COMMENT>=== Catch Block ===</COMMENT>
+      <INVOKE TIMEOUT="" SERVICE="pub.flow:getLastError" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Get Last Error</COMMENT>
+      </INVOKE>
+      <INVOKE TIMEOUT="" SERVICE="pub.flow:throwExceptionForRetry" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Rethrow exception</COMMENT>
+      </INVOKE>
+    </SEQUENCE>
+
+  </SEQUENCE>
+</FLOW>

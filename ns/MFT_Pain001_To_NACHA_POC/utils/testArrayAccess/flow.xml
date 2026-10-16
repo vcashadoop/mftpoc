@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FLOW VERSION="3.0" CLEANUP="true">
+  <SEQUENCE TIMEOUT="" EXIT-ON="FAILURE">
+    <MAP TIMEOUT="" MODE="STANDALONE">
+      <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/accum;1;0">
+        <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">START</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+      </MAPSET>
+    </MAP>
+    <LOOP TIMEOUT="" IN-ARRAY="/cstmr;2;0/PmtInf;2;1">
+      <LOOP TIMEOUT="" IN-ARRAY="/cstmr;2;0/PmtInf;2;0/CdtTrfTxInf;2;1">
+        <MAP TIMEOUT="" MODE="STANDALONE">
+          <MAPCOPY NAME="Link" FROM="/cstmr;2;0/PmtInf;2;0/CdtTrfTxInf;2;0/id;1;0" TO="/currentId;1;0"/>
+        </MAP>
+        <MAP TIMEOUT="" MODE="STANDALONE">
+          <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="true" GLOBALVARIABLES="false" FIELD="/accum;1;0">
+            <DATA ENCODING="XMLValues" I18N="true"><Values version="2.0"><value name="xml">%accum%-%currentId%</value><record name="type" javaclass="com.wm.util.Values"></record></Values></DATA>
+          </MAPSET>
+        </MAP>
+      </LOOP>
+    </LOOP>
+  </SEQUENCE>
+</FLOW>

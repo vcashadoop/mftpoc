@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<FLOW VERSION="3.0" CLEANUP="true">
+  <COMMENT>Main Transformation Flow: Stream -&gt; XML Document -&gt; 94-Byte NACHA Flat File</COMMENT>
+
+  <!-- nodes -->
+
+<SEQUENCE TIMEOUT="" EXIT-ON="SUCCESS">
+  <COMMENT>Main Wrapper (Exit on SUCCESS)</COMMENT>
+
+  <!-- nodes -->
+
+<SEQUENCE TIMEOUT="" EXIT-ON="FAILURE">
+  <COMMENT>TRY BLOCK: Stream to Document and Flat File Transformation</COMMENT>
+
+  <!-- nodes -->
+
+<BRANCH TIMEOUT="" SWITCH="/stream">
+  <COMMENT>Check xmlStream</COMMENT>
+
+  <!-- nodes -->
+
+<SEQUENCE NAME="$null" TIMEOUT="" EXIT-ON="FAILURE">
+  <COMMENT>Check xmlStream</COMMENT>
+
+  <!-- nodes -->
+
+<MAP TIMEOUT="" MODE="STANDALONE">
+  <COMMENT>Check xmlStream</COMMENT>
+
+  <!-- nodes -->
+
+<MAPCOPY NAME="Link" FROM="/xmlStream;3;0" TO="/inputStream;3;0">
+</MAPCOPY>
+</MAP>
+</SEQUENCE>
+
+<SEQUENCE NAME="$default" TIMEOUT="" EXIT-ON="FAILURE">
+  <COMMENT>Assign stream to inputStream</COMMENT>
+
+  <!-- nodes -->
+
+<MAP TIMEOUT="" MODE="STANDALONE">
+  <COMMENT>Assign stream to inputStream</COMMENT>
+
+  <!-- nodes -->
+
+<MAPCOPY NAME="Link" FROM="/stream;3;0" TO="/inputStream;3;0">
+</MAPCOPY>
+</MAP>
+</SEQUENCE>
+</BRANCH>
+
+<INVOKE TIMEOUT="" SERVICE="pub.io:streamToString" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+  <COMMENT>Inbuilt: convert input stream to XML string</COMMENT>
+</INVOKE>
+
+<MAP TIMEOUT="" MODE="STANDALONE">
+  <COMMENT>Map string to xmldata</COMMENT>
+
+  <!-- nodes -->
+
+<MAPCOPY NAME="Link" FROM="/string;1;0" TO="/xmldata;1;0">
+</MAPCOPY>
+</MAP>
+
+<INVOKE TIMEOUT="" SERVICE="pub.xml:xmlStringToXMLNode" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+  <COMMENT>Inbuilt: parse XML string to Node</COMMENT>
+</INVOKE>
+
+<MAP TIMEOUT="" MODE="STANDALONE">
+  <COMMENT>Set arrays parameter for repeating structures</COMMENT>
+
+  <!-- nodes -->
+
+<MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/arrays;1;1">
+  <DATA ENCODING="XMLValues" I18N="true">
+
+<Values version="2.0">
+  <array name="xml" type="value" depth="1">
+    <value>PmtInf</value>
+    <value>CdtTrfTxInf</value>
+  </array>
+</Values>
+</DATA>
+</MAPSET>
+</MAP>
+
+<INVOKE TIMEOUT="" SERVICE="pub.xml:xmlNodeToDocument" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+  <COMMENT>Inbuilt: parse XML Node to IData Document</COMMENT>
+</INVOKE>
+
+<INVOKE TIMEOUT="" SERVICE="MFT_Pain001_To_NACHA_POC.pub:buildNachaRecordsFromDoc" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+  <COMMENT>Transform XML Document to 94-Byte Fixed Width NACHA Text</COMMENT>
+</INVOKE>
+
+<MAP TIMEOUT="" MODE="STANDALONE">
+  <COMMENT>Prepare string for stringToStream</COMMENT>
+
+  <!-- nodes -->
+
+<MAPCOPY NAME="Link" FROM="/ffString;1;0" TO="/string;1;0">
+</MAPCOPY>
+</MAP>
+
+<INVOKE TIMEOUT="" SERVICE="pub.io:stringToStream" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+  <COMMENT>Inbuilt: convert formatted flat file string to InputStream</COMMENT>
+</INVOKE>
+
+<MAP TIMEOUT="" MODE="STANDALONE">
+  <COMMENT>Assign ffStream from stringToStream inputStream output</COMMENT>
+
+  <!-- nodes -->
+
+<MAPCOPY NAME="Link" FROM="/inputStream;3;0" TO="/ffStream;3;0">
+</MAPCOPY>
+</MAP>
+
+<MAP TIMEOUT="" MODE="STANDALONE">
+  <COMMENT>Prepare ffData and ffSchema for convertToValues</COMMENT>
+
+  <!-- nodes -->
+
+<MAPCOPY NAME="Link" FROM="/ffString;1;0" TO="/ffData;1;0">
+</MAPCOPY>
+
+<MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/ffSchema;1;0">
+  <DATA ENCODING="XMLValues" I18N="true">
+
+<Values version="2.0">
+  <value name="xml">MFT_Pain001_To_NACHA_POC.docs:ffs_NACHA_94Byte</value>
+</Values>
+</DATA>
+</MAPSET>
+</MAP>
+
+<INVOKE TIMEOUT="" SERVICE="pub.flatFile:convertToValues" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+  <COMMENT>Standard Flat File Processing: Validate &amp; Parse to IS Document</COMMENT>
+</INVOKE>
+
+<MAP TIMEOUT="" MODE="STANDALONE">
+
+  <!-- nodes -->
+
+<MAPDELETE NAME="Dropper" FIELD="/ffData;1;0">
+</MAPDELETE>
+
+<MAPDELETE NAME="Dropper" FIELD="/ffSchema;1;0">
+</MAPDELETE>
+</MAP>
+
+<MAP TIMEOUT="" MODE="STANDALONE">
+  <COMMENT>Drop temporary pipeline variables</COMMENT>
+
+  <!-- nodes -->
+
+<MAPDELETE NAME="Dropper" FIELD="/stream;3;0">
+</MAPDELETE>
+
+<MAPDELETE NAME="Dropper" FIELD="/xmlStream;3;0">
+</MAPDELETE>
+
+<MAPDELETE NAME="Dropper" FIELD="/inputStream;3;0">
+</MAPDELETE>
+
+<MAPDELETE NAME="Dropper" FIELD="/string;1;0">
+</MAPDELETE>
+
+<MAPDELETE NAME="Dropper" FIELD="/xmldata;1;0">
+</MAPDELETE>
+
+<MAPDELETE NAME="Dropper" FIELD="/node;3;0">
+</MAPDELETE>
+
+<MAPDELETE NAME="Dropper" FIELD="/arrays;1;1">
+</MAPDELETE>
+
+<MAPDELETE NAME="Dropper" FIELD="/document;2;0">
+</MAPDELETE>
+</MAP>
+</SEQUENCE>
+
+<SEQUENCE TIMEOUT="" EXIT-ON="DONE">
+  <COMMENT>CATCH BLOCK: Handle errors and sanitize</COMMENT>
+
+  <!-- nodes -->
+
+<INVOKE TIMEOUT="" SERVICE="pub.flow:getLastError" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+  <COMMENT>Capture last execution error</COMMENT>
+</INVOKE>
+
+<INVOKE TIMEOUT="" SERVICE="pub.flow:throwExceptionForRetry" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+  <COMMENT>Rethrow sanitized exception</COMMENT>
+</INVOKE>
+</SEQUENCE>
+</SEQUENCE>
+</FLOW>

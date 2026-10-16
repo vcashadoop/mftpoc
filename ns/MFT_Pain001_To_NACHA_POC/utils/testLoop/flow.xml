@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FLOW VERSION="3.0" CLEANUP="true">
+  <SEQUENCE TIMEOUT="" EXIT-ON="FAILURE">
+    <MAP TIMEOUT="" MODE="STANDALONE">
+      <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/accum;1;0">
+        <DATA ENCODING="XMLValues" I18N="true">
+          <Values version="2.0">
+            <value name="xml">START</value>
+            <record name="type" javaclass="com.wm.util.Values"></record>
+          </Values>
+        </DATA>
+      </MAPSET>
+    </MAP>
+    <LOOP TIMEOUT="" IN-ARRAY="/items">
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="true" GLOBALVARIABLES="false" FIELD="/accum;1;0">
+          <DATA ENCODING="XMLValues" I18N="true">
+            <Values version="2.0">
+              <value name="xml">%accum%-%items/name%</value>
+              <record name="type" javaclass="com.wm.util.Values"></record>
+            </Values>
+          </DATA>
+        </MAPSET>
+      </MAP>
+    </LOOP>
+  </SEQUENCE>
+</FLOW>

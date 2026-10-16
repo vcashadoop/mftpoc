@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FLOW VERSION="3.0" CLEANUP="true">
+  <COMMENT>Format fixed width field with padding and truncation to exact targetLength</COMMENT>
+  <!-- Level 1: Outer Try/Catch Sequence Wrapper -->
+  <SEQUENCE TIMEOUT="" EXIT-ON="SUCCESS">
+    <COMMENT>=== Outer Try/Catch Wrapper ===</COMMENT>
+
+    <!-- Level 2: Try Sequence -->
+    <SEQUENCE TIMEOUT="" EXIT-ON="FAILURE">
+      <COMMENT>=== Try Block ===</COMMENT>
+
+      <!-- Step 1: Default missing parameters -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPSET NAME="Setter" OVERWRITE="false" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/inString;1;0">
+          <DATA ENCODING="XMLValues" I18N="true">
+            <Values version="2.0">
+              <value name="xml"></value>
+              <record name="type" javaclass="com.wm.util.Values"></record>
+            </Values>
+          </DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="false" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/targetLength;1;0">
+          <DATA ENCODING="XMLValues" I18N="true">
+            <Values version="2.0">
+              <value name="xml">10</value>
+              <record name="type" javaclass="com.wm.util.Values"></record>
+            </Values>
+          </DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="false" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/padChar;1;0">
+          <DATA ENCODING="XMLValues" I18N="true">
+            <Values version="2.0">
+              <value name="xml"> </value>
+              <record name="type" javaclass="com.wm.util.Values"></record>
+            </Values>
+          </DATA>
+        </MAPSET>
+        <MAPSET NAME="Setter" OVERWRITE="false" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/direction;1;0">
+          <DATA ENCODING="XMLValues" I18N="true">
+            <Values version="2.0">
+              <value name="xml">RIGHT</value>
+              <record name="type" javaclass="com.wm.util.Values"></record>
+            </Values>
+          </DATA>
+        </MAPSET>
+      </MAP>
+
+      <!-- Step 2: Branch based on direction (LEFT for numeric pad-left, RIGHT for alphanumeric pad-right) -->
+      <BRANCH TIMEOUT="" SWITCH="/direction">
+
+        <!-- LEFT: Pad Left (Numeric Right-Justified) -->
+        <SEQUENCE NAME="LEFT" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/inString;1;0" TO="/inString;1;0"></MAPCOPY>
+            <MAPCOPY NAME="Link" FROM="/padChar;1;0" TO="/padString;1;0"></MAPCOPY>
+            <MAPCOPY NAME="Link" FROM="/targetLength;1;0" TO="/length;1;0"></MAPCOPY>
+          </MAP>
+          <INVOKE TIMEOUT="" SERVICE="pub.string:padLeft" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+            <COMMENT>Pad left with padChar</COMMENT>
+          </INVOKE>
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/outString;1;0"></MAPCOPY>
+            <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+            <MAPDELETE NAME="Dropper" FIELD="/padString;1;0"></MAPDELETE>
+            <MAPDELETE NAME="Dropper" FIELD="/length;1;0"></MAPDELETE>
+          </MAP>
+        </SEQUENCE>
+
+        <!-- DEFAULT: Pad Right (Alphanumeric Left-Justified) -->
+        <SEQUENCE NAME="$default" TIMEOUT="" EXIT-ON="FAILURE">
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/inString;1;0" TO="/inString;1;0"></MAPCOPY>
+            <MAPCOPY NAME="Link" FROM="/padChar;1;0" TO="/padString;1;0"></MAPCOPY>
+            <MAPCOPY NAME="Link" FROM="/targetLength;1;0" TO="/length;1;0"></MAPCOPY>
+          </MAP>
+          <INVOKE TIMEOUT="" SERVICE="pub.string:padRight" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+            <COMMENT>Pad right with padChar</COMMENT>
+          </INVOKE>
+          <!-- Ensure strictly targetLength using substring -->
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/inString;1;0"></MAPCOPY>
+            <MAPSET NAME="Setter" OVERWRITE="true" VARIABLES="false" GLOBALVARIABLES="false" FIELD="/beginIndex;1;0">
+              <DATA ENCODING="XMLValues" I18N="true">
+                <Values version="2.0">
+                  <value name="xml">0</value>
+                  <record name="type" javaclass="com.wm.util.Values"></record>
+                </Values>
+              </DATA>
+            </MAPSET>
+            <MAPCOPY NAME="Link" FROM="/targetLength;1;0" TO="/endIndex;1;0"></MAPCOPY>
+          </MAP>
+          <INVOKE TIMEOUT="" SERVICE="pub.string:substring" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+            <COMMENT>Truncate to exact length</COMMENT>
+          </INVOKE>
+          <MAP TIMEOUT="" MODE="STANDALONE">
+            <MAPCOPY NAME="Link" FROM="/value;1;0" TO="/outString;1;0"></MAPCOPY>
+            <MAPDELETE NAME="Dropper" FIELD="/value;1;0"></MAPDELETE>
+            <MAPDELETE NAME="Dropper" FIELD="/inString;1;0"></MAPDELETE>
+            <MAPDELETE NAME="Dropper" FIELD="/padString;1;0"></MAPDELETE>
+            <MAPDELETE NAME="Dropper" FIELD="/length;1;0"></MAPDELETE>
+            <MAPDELETE NAME="Dropper" FIELD="/beginIndex;1;0"></MAPDELETE>
+            <MAPDELETE NAME="Dropper" FIELD="/endIndex;1;0"></MAPDELETE>
+          </MAP>
+        </SEQUENCE>
+
+      </BRANCH>
+
+      <!-- Step 3: Cleanup -->
+      <MAP TIMEOUT="" MODE="STANDALONE">
+        <MAPDELETE NAME="Dropper" FIELD="/padChar;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/direction;1;0"></MAPDELETE>
+        <MAPDELETE NAME="Dropper" FIELD="/targetLength;1;0"></MAPDELETE>
+      </MAP>
+
+    </SEQUENCE>
+
+    <!-- Level 2: Catch Sequence -->
+    <SEQUENCE TIMEOUT="" EXIT-ON="DONE">
+      <COMMENT>=== Catch Block ===</COMMENT>
+      <INVOKE TIMEOUT="" SERVICE="pub.flow:getLastError" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Get Last Error</COMMENT>
+      </INVOKE>
+      <INVOKE TIMEOUT="" SERVICE="pub.flow:throwExceptionForRetry" VALIDATE-IN="$none" VALIDATE-OUT="$none">
+        <COMMENT>Rethrow exception</COMMENT>
+      </INVOKE>
+    </SEQUENCE>
+
+  </SEQUENCE>
+</FLOW>
