@@ -1,0 +1,65 @@
+interface MFT_Pain001_To_NACHA_POC.pub
+service testing (
+    input {
+        String a;
+        String b;
+    }
+    output {
+        String c;
+    }
+)
+properties {
+    favorite: false;
+    deprecated: false;
+    visible: private;
+    reuse: private;
+    stateless: true;
+    cacheResults: false;
+    cacheExpire: 15;
+    prefetch: false;
+    prefetchActivation: 1;
+    pipelineDebug: None;
+    allowedHttpMethods: [TRACE, HEAD, DELETE, POST, GET, OPTIONS, PUT, PATCH];
+    maxRetryAttempts: 0;
+    retryInterval: 0;
+    enableAuditing: never;
+    logOn: Error only;
+    includePipeline: never;
+    circuitBreakerEnabled: false;
+    failureEvent: Exception only;
+    timeoutPeriod: 60;
+    cancelThreadOnTimeout: false;
+    failureThreshold: 5;
+    failurePeriod: 60;
+    circuitOpenAction: Throw exception;
+    circuitResetPeriod: 300;
+    concurrencyEnabled: false;
+    maxConcurrentRequests: 20;
+    validateInput: false;
+    validateOutput: false;
+}
+{
+    INVOKE pub.math:addInts {
+        validateInput: false
+        validateOutput: false
+        input {
+            mapTarget {
+                String num1;
+                String num2;
+            }
+            set `num1` = "1";
+            set `num2` = "2";
+        }
+        output {
+            mapTarget {
+                String c;
+            }
+            copy `value` -> `c`;
+            drop `num1`;
+            drop `num2`;
+            drop `a`;
+            drop `b`;
+            drop `value`;
+        }
+    }
+}
