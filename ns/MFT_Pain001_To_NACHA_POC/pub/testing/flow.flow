@@ -11,8 +11,8 @@ service testing (
 properties {
     favorite: false;
     deprecated: false;
-    visible: private;
-    reuse: private;
+    visible: public;
+    reuse: public;
     stateless: true;
     cacheResults: false;
     cacheExpire: 15;
